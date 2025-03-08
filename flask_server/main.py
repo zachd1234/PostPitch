@@ -152,6 +152,12 @@ async def test_openai():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)})
 
+def get_credentials_file():
+    """Get the path to the credentials file based on environment"""
+    if os.path.exists('/etc/secrets/credentials.json'):
+        return '/etc/secrets/credentials.json'
+    return 'credentials.json'
+
 @app.route('/authorize_email', methods=['POST'])
 def authorize():
     """Made partially with ChatGPT"""
@@ -162,8 +168,9 @@ def authorize():
     subject = data.get('subject')
     body = data.get('body')
     # Create flow instance to manage the OAuth 2.0 Authorization Grant Flow steps.
+    credentials_file = get_credentials_file()
     flow = Flow.from_client_secrets_file(
-        'credentials.json', scopes=SCOPES)
+        credentials_file, scopes=SCOPES)
     unsecure_url = url_for('oauth2callback', _external=True)
     if 'http'==unsecure_url[0:4] and 'https'!=unsecure_url[0:5]:
         flow.redirect_uri = 'https'+unsecure_url[4:]
@@ -200,12 +207,9 @@ def oauth2callback():
             creds = pickle.load(token)
     else:
         # Create flow instance to manage the OAuth 2.0 Authorization Grant Flow steps.
+        credentials_file = get_credentials_file()
         flow = Flow.from_client_secrets_file(
-            'credentials.json', scopes=SCOPES)
-        flow.redirect_uri = url_for('oauth2callback', _external=True)
-
-        flow = Flow.from_client_secrets_file(
-            'credentials.json', scopes=SCOPES)
+            credentials_file, scopes=SCOPES)
         flow.redirect_uri = url_for('oauth2callback', _external=True)
 
         # Use the authorization server's response to fetch the OAuth 2.0 tokens.

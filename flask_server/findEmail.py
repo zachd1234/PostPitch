@@ -155,11 +155,16 @@ async def most_similar(strings, arr):
 
 def initialize_firebase():
     try:
+        # Check for Render environment
+        if os.path.exists('/etc/secrets/serviceAccount.json'):
+            cred = credentials.Certificate('/etc/secrets/serviceAccount.json')
+        else:
+            cred = credentials.Certificate('serviceAccount.json')
+        
         # Check if Firebase app is already initialized
         if not firebase_admin._apps:
             try:
                 # First try: Use serviceAccount.json
-                cred = credentials.Certificate('serviceAccount.json')
                 firebase_admin.initialize_app(cred, {
                     'projectId': os.environ.get("FIREBASE_PROJECT_ID", "blog-emailer-294e0"),
                     'databaseURL': os.environ.get("FIREBASE_DATABASE_URL", "https://blog-emailer-294e0-default-rtdb.firebaseio.com"),
@@ -287,7 +292,11 @@ async def inurl_email(url):
         print(f"DEBUG: Google search query: {query}")
         
         try:
-            service = build("customsearch", "v1", developerKey=os.environ['GOOGLE_API_KEY'])
+            # Add debugging for credentials
+            import env_config as secret
+            print(f"DEBUG: Using Google API Key: {secret.GOOGLE_API_KEY[:5]}..." if secret.GOOGLE_API_KEY else "DEBUG: No Google API Key found")
+            
+            service = build("customsearch", "v1", developerKey=secret.GOOGLE_API_KEY)
             print("DEBUG: Google API service built successfully")
             
             search_results = service.cse().list(q=query, cx='e3d6fd3b2065c471b', num=2).execute()
