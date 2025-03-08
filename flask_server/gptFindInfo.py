@@ -1,5 +1,5 @@
 from openai import AsyncOpenAI
-import secret
+import env_config as secret
 import os
 import math
 import random

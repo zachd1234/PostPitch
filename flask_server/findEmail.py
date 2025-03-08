@@ -8,7 +8,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 from googleapiclient.discovery import build
 
-import secret
+import env_config as secret
 from string_parser import custom_trim, filter_not_utf8
 
 headers = {
