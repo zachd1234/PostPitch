@@ -37,14 +37,15 @@ emailWriter.cpython-311.pyc
 .next
 next-env.d.ts
 
-   venv/
-   __pycache__/
-   *.pyc
-   .env
-   serviceAccount.json
-   credentials.json
+venv/
+__pycache__/
+*.pyc
+.env
+serviceAccount.json
+credentials.json
 
 node_modules
+.history 
 
 package-lock.json
 
