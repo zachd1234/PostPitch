@@ -11,8 +11,10 @@ async def qa(system_prompt, user_prompt):
     client = AsyncOpenAI(
         api_key=os.getenv("OPENAI_API_KEY")
     )
-    # Using the latest gpt-4o model
-    model = 'gpt-4o-2024-08-06'
+    gpt35_models = [
+            'gpt-4o-2024-08-06'
+        ]
+    model=gpt35_models[math.floor(random.random()*float(len(gpt35_models)))]
     completion = await client.chat.completions.create(
         model=model,
         temperature=0,

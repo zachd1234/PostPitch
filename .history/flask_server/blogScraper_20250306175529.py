@@ -239,100 +239,115 @@ async def get_everything_one_page(url):
 
 async def get_everything(url, needs_address=False):
     print("BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB")
-    try:
-        if url[len(url)-1]=='/' :
-            url = url[:-1]
-        splitURL = url.split('/')
-        # nearly fool proof way of distinguishing individual blog from general domain page.
-        if(not needs_address and ('https://' in url or 'http://' in url) and len(splitURL)>3 and splitURL[3]!='' and len(splitURL[len(splitURL)-1])>=10):
-            return await get_everything_one_page(url)
-        # All this code is needed to find the emails.
-        soup = None
-        for possibleUrl in parse_url(url):
-            if not soup:
-                soup = await get_blog_pages(possibleUrl)
-                if soup:
-                    url = possibleUrl
-        if not soup: return CustErr("No url found")
-        article_and_author = await get_blog_anchor(soup)
-        if type(article_and_author) == CustErr:
-            return article_and_author
-        author = article_and_author[1]
-        company = await complete_get_company(url)
-        if(type(company)==CustErr):
-            return company
-        email = None
-        used_firestore: bool = False
-        to_team = False
-        
-        # Try to get email from Firebase first
+    if url[len(url)-1]=='/' :
+        url = url[:-1]
+    splitURL = url.split('/')
+    # nearly fool proof way of distinguishing individual blog from general domain page.
+    if(not needs_address and ('https://' in url or 'http://' in url) and len(splitURL)>3 and splitURL[3]!='' and len(splitURL[len(splitURL)-1])>=10):
+        return await get_everything_one_page(url)
+    # All this code is needed to find the emails.
+    soup = None
+    for possibleUrl in parse_url(url):
+        if not soup:
+            soup = await get_blog_pages(possibleUrl)
+            if soup:
+                url = possibleUrl
+    if not soup: return CustErr("No url found")
+    article_and_author = await get_blog_anchor(soup)
+    if type(article_and_author) == CustErr:
+        return article_and_author
+    author = article_and_author[1]
+    company = await complete_get_company(url)
+    if(type(company)==CustErr):
+        return company
+    email = None
+    used_firestore: bool = False
+    to_team = False
+    if type(author) == str or author==None:
         email_res = await find_email_sequence(author, url, company)
         if email_res:
             email = email_res[0]
-            used_firestore = "firestore" in email_res[1]
-            to_team = not "author" in email_res[1]
-        
-        if not email:
+            used_firestore = 'firestore' in email_res[1]
+            to_team = 'company' in email_res[1]
+    else:
+        one_author = ''
+        possible_email = ''
+        # in this rare instant, author is a list
+        for athr in author:
+            if not email:
+                email_res = await find_email_sequence(athr, url, company)
+                if email_res:
+                    if 'company' in email_res[1]:
+                        possible_email = email_res[0]
+                    else:
+                        one_author = athr
+                        email = email_res[0]
+                        used_firestore = 'firestore' in email_res[1]
+                        to_team = False
+        author = one_author
+        if not author and possible_email:
+            email = possible_email
+            used_firestore = True
             to_team = True
-            email = await find_company_email(url, article_and_author[2])
-            if not email: 
-                email = await inurl_email(url)
-                if(needs_address):
-                    if type(email)==CustErr:
-                        return email
-                    if not email:
-                        return CustErr("Could not find email")
-                else:
-                    email = ""
-        if '?' in email: email = email.split('?')[0]
-        author_first = None
-        print("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM")
-        # team name
-        team_name = (await find_team_name(company, email)) if to_team and email else company + " Team"
+    if not email:
+        to_team = True
+        email = await find_company_email(url, article_and_author[2])
+        if not email: 
+            email = await inurl_email(url)
+            if(needs_address):
+                if type(email)==CustErr:
+                    return email
+                if not email:
+                    return CustErr("Could not find email")
+            else:
+                email = ""
+    if '?' in email: email = email.split('?')[0]
+    author_first = None
+    print("MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM")
+    # team name
+    team_name = (await find_team_name(company, email)) if to_team and email else company + " Team"
 
-        # getting article soup
-        article = article_and_author[0]
-        href = article['href']
-        if url not in href and 'www' not in href and 'http' not in href:
-            if href[0] == '/':
-                href = href[1:]
-            href  = custom_trim(url.split('?')[0], '/', '') + '/' + href
-        article_soup = get_soup_from_href(href)
+    # getting article soup
+    article = article_and_author[0]
+    href = article['href']
+    if url not in href and 'www' not in href and 'http' not in href:
+        if href[0] == '/':
+            href = href[1:]
+        href  = custom_trim(url.split('?')[0], '/', '') + '/' + href
+    article_soup = get_soup_from_href(href)
 
-        # Very Interesting part
-        very_interesting = await get_very_interesting(article_soup)
-        if type(very_interesting)==CustErr:
-            return very_interesting
-        # Title rephrase part
-        article_title = await get_title_from_soup(article_soup)
-        if type(article_title)==CustErr:
-            return article_title
-        rephrased_titles = await title_rephrase(article_title)
-        if type(rephrased_titles)==CustErr:
-            return rephrased_titles
-        if len(rephrased_titles) != 2:
-            return CustErr("Chat GPT incorectly repsonded.")
-        if type(very_interesting)==CustErr:
-            return very_interesting
+    # Very Interesting part
+    very_interesting = await get_very_interesting(article_soup)
+    if type(very_interesting)==CustErr:
+        return very_interesting
+    # Title rephrase part
+    article_title = await get_title_from_soup(article_soup)
+    if type(article_title)==CustErr:
+        return article_title
+    rephrased_titles = await title_rephrase(article_title)
+    if type(rephrased_titles)==CustErr:
+        return rephrased_titles
+    if len(rephrased_titles) != 2:
+        return CustErr("Chat GPT incorectly repsonded.")
+    if type(very_interesting)==CustErr:
+        return very_interesting
 
-        if author:
-            author_first = author.split(' ')[0] if ',' not in author else author.split(' ')[1]
-        else:
-            author = "None found"
-        
-        print("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE")
-        return{
-            "author": author,
-            "author_first": author_first,
-            "company": company,
-            "email": email,
-            "team_name": team_name,
-            "title": article_title,
-            "title_summaries": rephrased_titles,
-            "to_team": to_team,
-            "url": url,
-            "very_interesting": very_interesting
-        }
-    except Exception as e:
-        print(f"Error in get_everything: {e}")
-        return CustErr(f"Error in get_everything: {e}")
+    if author:
+        author_first = author.split(' ')[0] if ',' not in author else author.split(' ')[1]
+    else:
+        author = "None found"
+    if email and not used_firestore and '/' not in email and '%' not in email:
+        add_email_to_db(url, email, None if to_team else author)
+    print("EEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE")
+    return{
+        "author": author,
+        "author_first": author_first,
+        "company": company,
+        "email": email,
+        "team_name": team_name,
+        "title": article_title,
+        "title_summaries": rephrased_titles,
+        "to_team": to_team,
+        "url": url,
+        "very_interesting": very_interesting
+    }

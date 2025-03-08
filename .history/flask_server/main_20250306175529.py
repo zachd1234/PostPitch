@@ -78,45 +78,9 @@ async def write_intro(needs_address, bare_bones):
     email_obj = await get_everything_helper(url, needs_address, -1) if bare_bones else await write_email(url, needs_address)
     return email_obj[0]
 
-@app.route('/test')
-def test():
-    return jsonify({"status": "ok", "message": "Flask server is running"})
-
-@app.route('/test_firebase')
-def test_firebase():
-    try:
-        from findEmail import initialize_firebase
-        firebase_initialized = initialize_firebase()
-        return jsonify({
-            "status": "ok" if firebase_initialized else "error",
-            "message": "Firebase initialization " + ("successful" if firebase_initialized else "failed"),
-            "firebase_config": {
-                "project_id": os.environ.get("FIREBASE_PROJECT_ID", ""),
-                "database_url": os.environ.get("FIREBASE_DATABASE_URL", ""),
-                "storage_bucket": os.environ.get("FIREBASE_STORAGE_BUCKET", "")
-            }
-        })
-    except Exception as e:
-        return jsonify({"status": "error", "message": f"Error testing Firebase: {str(e)}"})
-
 @app.route('/email_data') # type: ignore
 async def email_data():
-    try:
-        url = request.args.get('url', '')
-        if not url:
-            return jsonify({"error": "No URL provided"})
-            
-        result = await get_everything_helper(url, True, -1)
-        return jsonify(result)
-    except Exception as e:
-        print(f"Error in email_data endpoint: {e}")
-        return jsonify({
-            "url": request.args.get('url', ''),
-            "email": f"ERRORTrue",
-            "subject": f"ERRORTrue",
-            "body": f"ERRORTrue",
-            "context": f"ERRORTrue {str(e)}"
-        })
+    return await write_intro(needs_address=True, bare_bones=False)
 
 @app.route('/email_data_lenient') # type: ignore
 async def email_data_lenient():
@@ -130,27 +94,6 @@ async def object_data():
 async def object_data_lenient():
     return await write_intro(needs_address=False, bare_bones=True)
 
-@app.route('/test_openai')
-async def test_openai():
-    from openai import AsyncOpenAI
-    import os
-    
-    client = AsyncOpenAI(
-        api_key=os.getenv("OPENAI_API_KEY")
-    )
-    
-    try:
-        completion = await client.chat.completions.create(
-            model="gpt-4o-2024-08-06",
-            temperature=0,
-            messages=[
-                {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": "Say hello!"}
-            ]
-        )
-        return jsonify({"status": "ok", "message": completion.choices[0].message.content})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)})
 
 @app.route('/authorize_email', methods=['POST'])
 def authorize():
@@ -238,6 +181,5 @@ def oauth2callback():
     else:
         return jsonify({'status': 'error'}), 500
 
-if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5003))
-    app.run(host='0.0.0.0', port=port)
+if __name__=="__main__":
+    app.run()

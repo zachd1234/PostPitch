@@ -31,15 +31,19 @@ async def find_email_sequence(name, url, company)-> Optional[Tuple[str, str]]:
     print(f"DEBUG find_email_sequence: Starting with name={name}, url={url}, company={company}")
     firebase_res = await find_email_firestore(name, url)
     print(f"DEBUG find_email_sequence: Firebase result: {firebase_res}")
-    if firebase_res: return (firebase_res[0], "firestore " + firebase_res[1])
+    if firebase_res: 
+        print(f"DEBUG find_email_sequence: Returning Firebase result: {firebase_res[0]}, type: firestore {firebase_res[1]}")
+        return (firebase_res[0], "firestore " + firebase_res[1])
     if not name: 
-        print("DEBUG find_email_sequence: No name provided, returning None")
+        print(f"DEBUG find_email_sequence: No name provided, returning None")
         return None
-    print(f"DEBUG find_email_sequence: No Firebase result, trying Apollo with name={name}")
+    print(f"DEBUG find_email_sequence: Trying Apollo with name={name}")
     email_rv = await find_email_apollo(name, url, company)
     print(f"DEBUG find_email_sequence: Apollo result: {email_rv}")
-    if email_rv: return (email_rv[0], "apollo")
-    print("DEBUG find_email_sequence: No email found, returning None")
+    if email_rv: 
+        print(f"DEBUG find_email_sequence: Returning Apollo result: {email_rv[0]}")
+        return (email_rv[0], "apollo")
+    print(f"DEBUG find_email_sequence: No email found, returning None")
     return None
 
 async def find_email_firestore(name, url)-> Optional[Tuple[str, str]]:

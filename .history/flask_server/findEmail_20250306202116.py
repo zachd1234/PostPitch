@@ -28,59 +28,59 @@ class CustErr:
 from typing import Optional, Tuple
 async def find_email_sequence(name, url, company)-> Optional[Tuple[str, str]]:
     """Returns the email and a string of what type of email it is"""
-    print(f"DEBUG find_email_sequence: Starting with name={name}, url={url}, company={company}")
-    firebase_res = await find_email_firestore(name, url)
-    print(f"DEBUG find_email_sequence: Firebase result: {firebase_res}")
-    if firebase_res: return (firebase_res[0], "firestore " + firebase_res[1])
-    if not name: 
-        print("DEBUG find_email_sequence: No name provided, returning None")
-        return None
-    print(f"DEBUG find_email_sequence: No Firebase result, trying Apollo with name={name}")
+    try:
+        firebase_res = await find_email_firestore(name, url)
+        if firebase_res: 
+            return (firebase_res[0], "firestore " + firebase_res[1])
+    except Exception as e:
+        print(f"Error with Firebase: {e}")
+        # Continue without Firebase
+        pass
+    
+    if not name: return None
     email_rv = await find_email_apollo(name, url, company)
-    print(f"DEBUG find_email_sequence: Apollo result: {email_rv}")
     if email_rv: return (email_rv[0], "apollo")
-    print("DEBUG find_email_sequence: No email found, returning None")
     return None
 
 async def find_email_firestore(name, url)-> Optional[Tuple[str, str]]:
-    """Returns a tuple with the email and a description of the type of email"""
-    print(f"DEBUG find_email_firestore: Searching for email with name={name}, url={url}")
-    initialize_firebase()
-    db = firestore.client()
-    firebase_url = '\\'.join(url.split('/'))
-    print(f"DEBUG find_email_firestore: Firebase URL format: {firebase_url}")
-    ref = db.collection('sites').document(firebase_url)
-    print(f"DEBUG find_email_firestore: Querying document at sites/{firebase_url}")
-    doc = ref.get()
-    print(f"DEBUG find_email_firestore: Document exists: {doc.exists}")
-    if not doc.exists: return None
-    data = doc.to_dict()
-    print(f"DEBUG find_email_firestore: Document data: {data}")
-    if 'email' in data:
-        possible_email = data['email']
-        print(f"DEBUG find_email_firestore: Found email in document: {possible_email}")
-        if '/' not in possible_email and '%' not in possible_email:
-            print(f"DEBUG find_email_firestore: Returning company email: {data['email']}")
-            return (data['email'], 'company')
-        else:
-            print(f"DEBUG find_email_firestore: Email contains invalid characters, updating document")
-            ref.update({
-                "actualAddress": False
-            })
-    if not name: 
-        print(f"DEBUG find_email_firestore: No name provided, returning None")
+    """Checks if the email is in the firestore database"""
+    try:
+        if not initialize_firebase():
+            print("Skipping Firebase lookup due to initialization failure")
+            return None
+            
+        db = firestore.client()
+        firebase_url = '\\'.join(url.split('/'))
+        
+        # Try to get email by URL
+        try:
+            doc_ref = db.collection('emails').document(firebase_url)
+            doc = doc_ref.get()
+            if doc.exists:
+                data = doc.to_dict()
+                if data and 'email' in data:
+                    if data.get('author', None) == name or not data.get('author', None):
+                        return (data['email'], 'firestore company')
+                    else:
+                        return (data['email'], 'firestore author')
+        except Exception as e:
+            print(f"Error querying Firebase by URL: {e}")
+        
+        # Try to get email by author name if URL lookup failed
+        if name:
+            try:
+                docs = db.collection('emails').where('author', '==', name).limit(1).get()
+                for doc in docs:
+                    data = doc.to_dict()
+                    if 'email' in data:
+                        return (data['email'], 'firestore author')
+            except Exception as e:
+                print(f"Error querying Firebase by author: {e}")
+                
         return None
-    authors = ref.collection('authors')
-    print(f"DEBUG find_email_firestore: Checking authors collection for {name}")
-    authors_ref = authors.document(name).get()
-    print(f"DEBUG find_email_firestore: Author document exists: {authors_ref.exists}")
-    if not authors_ref.exists:
-        print(f"DEBUG find_email_firestore: No author document found, returning None")
+    except Exception as e:
+        print(f"Error in find_email_firestore: {e}")
         return None
-    author_data = authors_ref.to_dict()
-    print(f"DEBUG find_email_firestore: Author data: {author_data}")
-    print(f"DEBUG find_email_firestore: Returning personal email: {author_data.get('email')}")
-    return (author_data['email'], 'personal')
 
 async def find_email_apollo(name:str, url: str, company_name: str)-> list[str]:
     api_loc = "https://api.apollo.io/api/v1/people/match"
@@ -243,90 +243,36 @@ async def find_company_email(url, a_soup, words=['contact', 'about']):
         return None
 
 async def get_email_from_rsoup(r_soup):
-    print(f"DEBUG: get_email_from_rsoup called with soup type: {type(r_soup)}")
-    
     def get_href(x):
-        if 'href' in x.attrs: 
+        if  'href' in x.attrs: 
             return x['href']
         return None
-    
     r_soup_hrefs = list(map(get_href, r_soup.find_all('a')))
-    print(f"DEBUG: Found {len(r_soup_hrefs)} href links")
-    
     email_hrefs = []
     for href in r_soup_hrefs: 
         if href and ('@' in href and '/' not in href and '%' not in href):
             email_hrefs.append(href)
-            print(f"DEBUG: Found potential email href: {href}")
-    
-    if not email_hrefs: 
-        print("DEBUG: No email hrefs found")
-        return None
-    
-    print(f"DEBUG: Found {len(email_hrefs)} email hrefs")
-    try:
-        most_similar_result = await most_similar(['contact@company.com'], email_hrefs)
-        print(f"DEBUG: Most similar result: {most_similar_result}")
-        email = email_hrefs[most_similar_result[0]]
-        
-        if 'mailto:' in email:
-            email = email.split('mailto:')[-1]
-            print(f"DEBUG: Extracted email from mailto: {email}")
-        
-        print(f"DEBUG: Final email: {email}")
-        return (email if '@' in email else None)
-    except Exception as e:
-        print(f"DEBUG: Error in get_email_from_rsoup: {e}")
-        return None
+    if not email_hrefs: return None
+    email = email_hrefs[(await most_similar(['contact@company.com'], email_hrefs))[0]]
+    if 'mailto:' in email:
+        email = email.split('mailto:')[-1]
+    return (email if '@' in email else None)
 
 async def inurl_email(url):
     try:
-        print(f"DEBUG: inurl_email called with URL: {url}")
         global headers
         query = 'inurl:' + url + ' "email"'
-        print(f"DEBUG: Google search query: {query}")
-        
-        try:
-            service = build("customsearch", "v1", developerKey=os.environ['GOOGLE_API_KEY'])
-            print("DEBUG: Google API service built successfully")
-            
-            search_results = service.cse().list(q=query, cx='e3d6fd3b2065c471b', num=2).execute()
-            print(f"DEBUG: Google search results: {search_results.keys()}")
-            
-            if 'items' not in search_results:
-                print("DEBUG: No search results found")
-                return None
-                
-            google_res = search_results['items']
-            print(f"DEBUG: Found {len(google_res)} search results")
-            
-            email_urls = list(map(lambda x: x['link'], google_res))
-            print(f"DEBUG: Email URLs: {email_urls}")
-            
-            email = None
-            for email_url in email_urls:
-                print(f"DEBUG: Checking URL: {email_url}")
-                if not email:
-                    try:
-                        r = requests.get(email_url, headers=headers)
-                        print(f"DEBUG: URL status code: {r.status_code}")
-                        
-                        if r.status_code == 200:
-                            soup = BeautifulSoup(r.content, 'html5lib')
-                            if soup:
-                                print("DEBUG: Successfully parsed page")
-                                email = await get_email_from_rsoup(soup)
-                                if email:
-                                    print(f"DEBUG: Found email: {email}")
-                                    break
-                    except Exception as e:
-                        print(f"DEBUG: Error fetching URL {email_url}: {e}")
-            
-            print(f"DEBUG: Final email result: {email}")
-            return email if email else None
-        except Exception as e:
-            print(f"DEBUG: Error with Google API: {e}")
-            return None
+        service = build("customsearch", "v1", developerKey=os.environ['GOOGLE_API_KEY'])
+        google_res = service.cse().list(q=query, cx='e3d6fd3b2065c471b', num=2).execute()['items']
+        email_urls = list(map(lambda x: x['link'], google_res))
+        email = None
+        for email_url in email_urls: # Does not itterate through all of res will return something here
+            if not email:
+                r = requests.get(email_url,headers=headers)
+                if r.status_code==200:
+                    soup = BeautifulSoup(r.content, 'html5lib')
+                    if soup:
+                        email = await get_email_from_rsoup(soup)
+        return email if email else None
     except Exception as e:
-        print(f"DEBUG: Error in inurl_email: {e}")
         return CustErr(str(e))

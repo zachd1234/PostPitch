@@ -11,7 +11,6 @@ layer_directory
 credentials
 
 .env
-.env.local
 flask_server/secret.py
 flask_server/serviceAccount.json
 flask_server/flask_session
@@ -36,13 +35,6 @@ emailWriter.cpython-311.pyc
 
 .next
 next-env.d.ts
-
-   venv/
-   __pycache__/
-   *.pyc
-   .env
-   serviceAccount.json
-   credentials.json
 
 node_modules
 

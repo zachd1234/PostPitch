@@ -28,18 +28,11 @@ class CustErr:
 from typing import Optional, Tuple
 async def find_email_sequence(name, url, company)-> Optional[Tuple[str, str]]:
     """Returns the email and a string of what type of email it is"""
-    print(f"DEBUG find_email_sequence: Starting with name={name}, url={url}, company={company}")
     firebase_res = await find_email_firestore(name, url)
-    print(f"DEBUG find_email_sequence: Firebase result: {firebase_res}")
     if firebase_res: return (firebase_res[0], "firestore " + firebase_res[1])
-    if not name: 
-        print("DEBUG find_email_sequence: No name provided, returning None")
-        return None
-    print(f"DEBUG find_email_sequence: No Firebase result, trying Apollo with name={name}")
+    if not name: return None
     email_rv = await find_email_apollo(name, url, company)
-    print(f"DEBUG find_email_sequence: Apollo result: {email_rv}")
     if email_rv: return (email_rv[0], "apollo")
-    print("DEBUG find_email_sequence: No email found, returning None")
     return None
 
 async def find_email_firestore(name, url)-> Optional[Tuple[str, str]]:

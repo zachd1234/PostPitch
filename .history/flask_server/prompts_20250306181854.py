@@ -49,7 +49,7 @@ def find_blog_article_prompt(articles_count: Union[str, int], num_needed):
     something like "Best restaraunts in London" it is not the name of a blog company, but the title of an article. "mashable.com" is something you should not return.\
     These are examples. In reality, return one of the strings that were given to you. Do not return any aditional text/comment. Here is the content: '
 
-def fix_find_blog_article_prompt(articles_count: Union[str, int], num_needed):
+def fix_find_blog_article_prompt(articles_count: str|int, num_needed):
     # Prompt may be excessive
     return 'Of these ' + str(articles_count) + ' strings, which ' + str(num_needed) + ' sound most like the title to a blog\
     article?' + ('Your answer should be in the form of a numbered list.' if num_needed >= 2 else '') + 'Realize, you are looking for the TITLE \

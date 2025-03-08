@@ -265,12 +265,9 @@ async def get_everything(url, needs_address=False):
         used_firestore: bool = False
         to_team = False
         
-        # Try to get email from Firebase first
-        email_res = await find_email_sequence(author, url, company)
-        if email_res:
-            email = email_res[0]
-            used_firestore = "firestore" in email_res[1]
-            to_team = not "author" in email_res[1]
+        # Skip Firebase for now
+        email = None
+        to_team = True
         
         if not email:
             to_team = True

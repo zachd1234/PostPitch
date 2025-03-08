@@ -28,59 +28,36 @@ class CustErr:
 from typing import Optional, Tuple
 async def find_email_sequence(name, url, company)-> Optional[Tuple[str, str]]:
     """Returns the email and a string of what type of email it is"""
-    print(f"DEBUG find_email_sequence: Starting with name={name}, url={url}, company={company}")
     firebase_res = await find_email_firestore(name, url)
-    print(f"DEBUG find_email_sequence: Firebase result: {firebase_res}")
     if firebase_res: return (firebase_res[0], "firestore " + firebase_res[1])
-    if not name: 
-        print("DEBUG find_email_sequence: No name provided, returning None")
-        return None
-    print(f"DEBUG find_email_sequence: No Firebase result, trying Apollo with name={name}")
+    if not name: return None
     email_rv = await find_email_apollo(name, url, company)
-    print(f"DEBUG find_email_sequence: Apollo result: {email_rv}")
     if email_rv: return (email_rv[0], "apollo")
-    print("DEBUG find_email_sequence: No email found, returning None")
     return None
 
 async def find_email_firestore(name, url)-> Optional[Tuple[str, str]]:
     """Returns a tuple with the email and a description of the type of email"""
-    print(f"DEBUG find_email_firestore: Searching for email with name={name}, url={url}")
     initialize_firebase()
     db = firestore.client()
     firebase_url = '\\'.join(url.split('/'))
-    print(f"DEBUG find_email_firestore: Firebase URL format: {firebase_url}")
     ref = db.collection('sites').document(firebase_url)
-    print(f"DEBUG find_email_firestore: Querying document at sites/{firebase_url}")
     doc = ref.get()
-    print(f"DEBUG find_email_firestore: Document exists: {doc.exists}")
     if not doc.exists: return None
     data = doc.to_dict()
-    print(f"DEBUG find_email_firestore: Document data: {data}")
     if 'email' in data:
         possible_email = data['email']
-        print(f"DEBUG find_email_firestore: Found email in document: {possible_email}")
         if '/' not in possible_email and '%' not in possible_email:
-            print(f"DEBUG find_email_firestore: Returning company email: {data['email']}")
             return (data['email'], 'company')
         else:
-            print(f"DEBUG find_email_firestore: Email contains invalid characters, updating document")
             ref.update({
                 "actualAddress": False
             })
-    if not name: 
-        print(f"DEBUG find_email_firestore: No name provided, returning None")
-        return None
+    if not name: return None
     authors = ref.collection('authors')
-    print(f"DEBUG find_email_firestore: Checking authors collection for {name}")
     authors_ref = authors.document(name).get()
-    print(f"DEBUG find_email_firestore: Author document exists: {authors_ref.exists}")
     if not authors_ref.exists:
-        print(f"DEBUG find_email_firestore: No author document found, returning None")
         return None
-    author_data = authors_ref.to_dict()
-    print(f"DEBUG find_email_firestore: Author data: {author_data}")
-    print(f"DEBUG find_email_firestore: Returning personal email: {author_data.get('email')}")
-    return (author_data['email'], 'personal')
+    return (authors_ref.to_dict()['email'], 'personal')
 
 async def find_email_apollo(name:str, url: str, company_name: str)-> list[str]:
     api_loc = "https://api.apollo.io/api/v1/people/match"

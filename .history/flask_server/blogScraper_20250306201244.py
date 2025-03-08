@@ -154,33 +154,31 @@ async def get_very_interesting(soup):
     return response
 
 def add_email_to_db(url, email, author=None):
-    """author is only the name of the author if the email is the author's email."""
-    initialize_firebase()
-    db = firestore.client()
-    firebase_url = '\\'.join(url.split('/'))
-    ref = db.collection('sites').document(firebase_url)
-    doc = ref.get()
-    if not doc.exists:
-        ref.set({})
-    if author:
-        authors = ref.collection('authors')
-        authors_ref = authors.document(author)
-        if not authors_ref.get().exists:
-            authors_ref.set({
-                "email": email
-            })
-    else:
-        if doc.exists and 'email' not in doc.to_dict():
-            ref.update({
-                "email": email,
-                "secondaryEmail": "",
-                "actualAddress": True
-            })
-        else:
-            ref.set({
-                "email": email,
-                "secondaryEmail": ""
-            })
+    try:
+        if not initialize_firebase():
+            print("Skipping adding email to Firebase due to initialization failure")
+            return
+            
+        db = firestore.client()
+        firebase_url = '\\'.join(url.split('/'))
+        
+        # Add email to the 'emails' collection
+        email_data = {
+            'email': email,
+            'url': url,
+            'timestamp': firestore.SERVER_TIMESTAMP
+        }
+        
+        if author:
+            email_data['author'] = author
+            
+        try:
+            db.collection('emails').document(firebase_url).set(email_data)
+            print(f"Successfully added email to Firebase: {email} for URL: {url}")
+        except Exception as e:
+            print(f"Error adding email to Firebase: {e}")
+    except Exception as e:
+        print(f"Error in add_email_to_db: {e}")
 
 async def complete_get_company(url):
     company = await company_name(url)
@@ -265,12 +263,9 @@ async def get_everything(url, needs_address=False):
         used_firestore: bool = False
         to_team = False
         
-        # Try to get email from Firebase first
-        email_res = await find_email_sequence(author, url, company)
-        if email_res:
-            email = email_res[0]
-            used_firestore = "firestore" in email_res[1]
-            to_team = not "author" in email_res[1]
+        # Skip Firebase for now
+        email = None
+        to_team = True
         
         if not email:
             to_team = True
